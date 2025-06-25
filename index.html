@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deportivo Botafogo - App Gestión</title>
+    <title>SerenaApp</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/handlebars@latest/dist/handlebars.min.js"></script>
@@ -294,7 +294,7 @@
 <body class="bg-primary">
     <div id="login-screen">
         <div class="login-box">
-            <img src="https://i.postimg.cc/Y9C4PC2V/Serena.png" alt="[Imagen del] Logo Botafogo" class="login-logo" onerror="this.src='https://placehold.co/200x100/cccccc/333333?text=LOGO'; this.onerror=null;">
+            <img src="https://i.postimg.cc/Y9C4PC2V/Serena.png" alt="[Imagen del] Logo Serena" class="login-logo" onerror="this.src='https://placehold.co/200x100/cccccc/333333?text=LOGO'; this.onerror=null;">
             <h2 class="text-2xl font-bold text-primary mb-6">Bienvenido a Club Deportivo SerenaApp</h2>
             <form id="login-form">
                 <div>
@@ -871,24 +871,18 @@
      * Formatea el input de username/RUT para el formulario de usuarios (permite guion).
      * @param {HTMLInputElement} rutInput - El elemento input del RUT.
      */
-    function formatUsernameRut(rutInput) {
-        if (!rutInput) return;
-        let value = rutInput.value.replace(/[^0-9kK-]/g, '');
-        const parts = value.split('-');
-        let body = parts[0].replace(/[^0-9kK]/g, '');
-        let dv = '';
-        if (parts.length > 1) {
-            dv = parts.slice(1).join('').replace(/[^0-9kK]/g, '');
-            if (dv.length > 1) dv = dv.charAt(0);
-        }
-        value = body;
-        if (dv.match(/^[0-9kK]$/i)) {
-            value += '-' + dv;
-        } else if (dv) { // Si hay algo después del guion pero no es un DV válido, solo mantener el cuerpo
-             value = body;
-        }
-        rutInput.value = value.toUpperCase();
+    // --- REEMPLAZA TU FUNCIÓN formatUsernameRut ANTIGUA POR ESTA ---
+function formatUsernameRut(inputElement) {
+    if (!inputElement) return;
+    // Permite solo números, K y un guion.
+    let value = inputElement.value.toUpperCase().replace(/[^0-9K-]/g, '');
+    const parts = value.split('-');
+    // Si hay más de un guion, une las partes para que solo quede el primero.
+    if (parts.length > 2) {
+        value = parts[0] + '-' + parts.slice(1).join('');
     }
+    inputElement.value = value;
+}
 
     /**
      * Formatea el input de username para el login (permite un solo guion).
@@ -2912,7 +2906,7 @@ async function handlePoderSimpleSubmit(event) {
         
         const urlTramite = "https://futbolapps.github.io/SerenaApp/tramite_individual.pdf";
         const urlAutorizacion = "https://futbolapps.github.io/SerenaApp/autorizacion_jugadores.pdf";
-        const urlPoderSimple = "https://futbolapps.github.io/SerenaApp/podersimple_botafogo.pdf";
+        const urlPoderSimple = "https://futbolapps.github.io/SerenaApp/podersimple_serena.pdf";
         
         let pdfUrlToLoad, dataToFill, outputFilename;
 
