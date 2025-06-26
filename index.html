@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/js-sha256/build/sha256.min.js"></script>
     <style>
         /* --- Estilos CSS Actualizados --- */
         :root {
@@ -874,10 +875,10 @@
     // --- REEMPLAZA TU FUNCIÓN formatUsernameRut ANTIGUA POR ESTA ---
 function formatUsernameRut(inputElement) {
     if (!inputElement) return;
-    // Permite solo números, K y un guion.
+    // Permite solo números, la letra K y el guion.
     let value = inputElement.value.toUpperCase().replace(/[^0-9K-]/g, '');
     const parts = value.split('-');
-    // Si hay más de un guion, une las partes para que solo quede el primero.
+    // Si el usuario por error pone más de un guion, esta lógica lo arregla.
     if (parts.length > 2) {
         value = parts[0] + '-' + parts.slice(1).join('');
     }
@@ -1156,11 +1157,8 @@ function formatUsernameRut(inputElement) {
             return;
         }
 
-        // Comparar hash de contraseña
-        const encoder = new TextEncoder();
-        const passwordData = encoder.encode(passwordValue);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', passwordData);
-        const enteredPasswordHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+        // Se usa la nueva librería 'sha256()' que es más simple y no necesita contexto seguro.
+        const enteredPasswordHash = sha256(passwordValue);
 
         if (enteredPasswordHash === user.password_hash) {
             console.log('[handleLoginSubmit] Credenciales válidas para (public.users):', user.username);
@@ -1450,124 +1448,111 @@ function renderPoderSimpleForm() {
      * Renderiza el formulario de gestión de usuarios y la lista de usuarios.
      */
     async function renderUserManagementForm() {
-        const currentUser = JSON.parse(localStorage.getItem('currentUser'));
-        if (!currentUser || currentUser.role !== 'admin') {
-            if (contentAreaElement) contentAreaElement.innerHTML = '<p class="text-red-500 text-center font-semibold p-4">Acceso restringido a administradores.</p>';
-            return;
-        }
-        if (!mainTitleElement || !contentAreaElement) return;
-        mainTitleElement.innerText = 'Gestión de Usuarios';
-        const inputBaseClasses = "form-input-base";
-
-        // --- INICIO DE LA MODIFICACIÓN ---
-        const desktopForm = `
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 items-end">
-                <div>
-                    <label for="new-username" class="block text-sm font-medium text-secondary mb-1">Usuario (RUT):</label>
-                    <input type="text" id="new-username" class="${inputBaseClasses}" placeholder="Ej: 12345678-K" required>
-                </div>
-                <div>
-                    <label for="new-password" class="block text-sm font-medium text-secondary mb-1">Clave:</label>
-                    <input type="password" id="new-password" class="${inputBaseClasses}" placeholder="(En blanco para no cambiar al editar)">
-                </div>
-                <div class="flex flex-col">
-                    <button type="submit" id="user-submit-button" class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white focus:outline-none focus:ring-2 focus:ring-offset-2">
-                        <span id="user-submit-button-text">Agregar</span>
-                    </button>
-                    <button type="button" id="user-cancel-button" class="hidden w-full mt-2 inline-flex justify-center py-2 px-4 border shadow-sm text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Cancelar Edición
-                    </button>
-                </div>
-            </div>
-        `;
-        const mobileForm = `
-            <div class="space-y-4">
-                <div>
-                    <label for="new-username" class="block text-sm font-medium text-secondary mb-1">Usuario (RUT):</label>
-                    <input type="text" id="new-username" class="${inputBaseClasses}" placeholder="Ej: 12345678-K" required>
-                </div>
-                <div>
-                    <label for="new-password" class="block text-sm font-medium text-secondary mb-1">Clave:</label>
-                    <input type="password" id="new-password" class="${inputBaseClasses}" placeholder="(En blanco para no cambiar al editar)">
-                </div>
-                <div class="flex flex-col space-y-2">
-                    <button type="submit" id="user-submit-button" class="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white focus:outline-none focus:ring-2 focus:ring-offset-2">
-                        <span id="user-submit-button-text">Agregar</span>
-                    </button>
-                    <button type="button" id="user-cancel-button" class="hidden w-full inline-flex justify-center py-2 px-4 border shadow-sm text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                        Cancelar Edición
-                    </button>
-                </div>
-            </div>
-        `;
-
-        const managementHtml = `
-            <div class="bg-secondary p-4 sm:p-6 rounded-lg shadow-md mb-8">
-                <h2 id="user-form-title" class="text-lg sm:text-xl font-semibold mb-4 text-primary">Agregar Nuevo Usuario</h2>
-                <form id="form-add-user">
-                    <input type="hidden" id="edit-user-id" value="">
-                    <div class="mb-4">
-                        <label for="new-fullname" class="block text-sm font-medium text-secondary mb-1">Nombre Completo:</label>
-                        <input type="text" id="new-fullname" class="${inputBaseClasses}" required>
-                    </div>
-                    
-                    <div class="desktop-only">${desktopForm}</div>
-                    <div class="mobile-only">${mobileForm}</div>
-
-                    <div class="mb-4">
-                        <label for="new-role" class="block text-sm font-medium text-secondary mb-1">Rol:</label>
-                        <select id="new-role" class="${inputBaseClasses} form-select-base">
-                            <option value="user">Usuario</option>
-                            <option value="admin">Administrador</option>
-                        </select>
-                    </div>
-                    <div id="add-user-error" class="text-sm mt-1 min-h-[1.25rem]"></div>
-                </form>
-            </div>
-            <div class="bg-secondary p-4 sm:p-6 rounded-lg shadow-md">
-                <h2 class="text-lg sm:text-xl font-semibold mb-4 text-primary">Usuarios Registrados</h2>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-border-color border border-border-input">
-                        <thead class="bg-primary dark:bg-gray-700">
-                            <tr>
-                                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider border-r border-border-color">Nombre Completo</th>
-                                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider border-r border-border-color">Usuario (RUT)</th>
-                                <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider border-r border-border-color">Rol</th>
-                                <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-secondary uppercase tracking-wider border-r border-border-color">Editar</th>
-                                <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-secondary uppercase tracking-wider">Eliminar</th>
-                            </tr>
-                        </thead>
-                        <tbody id="user-management-table-body" class="bg-secondary divide-y divide-border-color">
-                        </tbody>
-                    </table>
-                </div>
-            </div>`;
-        // --- FIN DE LA MODIFICACIÓN ---
-            
-        contentAreaElement.innerHTML = managementHtml;
-
-        document.getElementById('form-add-user').addEventListener('submit', handleAddUserSubmit);
-        document.getElementById('user-cancel-button').addEventListener('click', resetUserForm);
-        document.getElementById('new-username').addEventListener('input', (e) => formatUsernameRut(e.target));
-        document.getElementById('new-fullname').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase(); });
-        resetUserForm();
-
-        const userTableBody = document.getElementById('user-management-table-body');
-        const { data: usersData, error: usersError } = await supabaseClient.from('users').select('*');
-
-        if (usersError) {
-            userTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">Error cargando usuarios: ${usersError.message}</td></tr>`;
-            return;
-        }
-        if (!usersData || usersData.length === 0) {
-            userTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-secondary">No hay usuarios registrados.</td></tr>`;
-            return;
-        }
-
-        const templateSource = document.getElementById('user-management-row-template').innerHTML;
-        const template = Handlebars.compile(templateSource);
-        userTableBody.innerHTML = template({ users: usersData });
+    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+    if (!currentUser || currentUser.role !== 'admin') {
+        if (contentAreaElement) contentAreaElement.innerHTML = '<p class="text-red-500 text-center font-semibold p-4">Acceso restringido a administradores.</p>';
+        return;
     }
+    if (!mainTitleElement || !contentAreaElement) return;
+
+    mainTitleElement.innerText = 'Gestión de Usuarios';
+    const inputBaseClasses = "form-input-base";
+
+    // --- ESTRUCTURA HTML UNIFICADA Y CORREGIDA ---
+    // Se elimina la duplicación de formularios 'desktop' y 'mobile'.
+    // Se usa un solo formulario con clases responsivas de Tailwind.
+    const managementHtml = `
+        <div class="bg-secondary p-4 sm:p-6 rounded-lg shadow-md mb-8">
+            <h2 id="user-form-title" class="text-lg sm:text-xl font-semibold mb-4 text-primary">Agregar Nuevo Usuario</h2>
+            <form id="form-add-user" novalidate> <input type="hidden" id="edit-user-id" value="">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label for="new-fullname" class="block text-sm font-medium text-secondary mb-1">Nombre Completo:</label>
+                            <input type="text" id="new-fullname" class="${inputBaseClasses}">
+                        </div>
+                        <div>
+                            <label for="new-username" class="block text-sm font-medium text-secondary mb-1">Usuario (RUT):</label>
+                            <input type="text" id="new-username" class="${inputBaseClasses}" placeholder="Ej: 12345678-K">
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label for="new-password" class="block text-sm font-medium text-secondary mb-1">Clave:</label>
+                            <input type="password" id="new-password" class="${inputBaseClasses}" placeholder="(En blanco para no cambiar al editar)">
+                        </div>
+                        <div>
+                            <label for="new-role" class="block text-sm font-medium text-secondary mb-1">Rol:</label>
+                            <select id="new-role" class="${inputBaseClasses} form-select-base">
+                                <option value="user">Usuario</option>
+                                <option value="admin">Administrador</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex flex-col sm:flex-row items-center gap-4">
+                    <button type="submit" id="user-submit-button" class="w-full sm:w-auto inline-flex justify-center py-2 px-6 border border-transparent shadow-sm text-sm font-medium rounded-md text-white focus:outline-none focus:ring-2 focus:ring-offset-2">
+                        <span id="user-submit-button-text">Agregar</span>
+                    </button>
+                    <button type="button" id="user-cancel-button" class="hidden w-full sm:w-auto mt-2 sm:mt-0 inline-flex justify-center py-2 px-4 border shadow-sm text-sm font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Cancelar Edición
+                    </button>
+                    <div id="add-user-error" class="text-sm min-h-[1.25rem] sm:ml-4"></div>
+                </div>
+            </form>
+        </div>
+
+        <div class="bg-secondary p-4 sm:p-6 rounded-lg shadow-md">
+            <h2 class="text-lg sm:text-xl font-semibold mb-4 text-primary">Usuarios Registrados</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-border-color border border-border-input">
+                    <thead class="bg-primary dark:bg-gray-700">
+                        <tr>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider border-r border-border-color">Nombre Completo</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider border-r border-border-color">Usuario (RUT)</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-semibold text-secondary uppercase tracking-wider border-r border-border-color">Rol</th>
+                            <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-secondary uppercase tracking-wider border-r border-border-color">Editar</th>
+                            <th scope="col" class="px-4 py-3 text-center text-xs font-semibold text-secondary uppercase tracking-wider">Eliminar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="user-management-table-body" class="bg-secondary divide-y divide-border-color">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+        
+    contentAreaElement.innerHTML = managementHtml;
+
+    // Se adjuntan los listeners al nuevo formulario unificado
+    // La función handleAddUserSubmit que te di antes ya está lista para funcionar con esto.
+    document.getElementById('form-add-user').addEventListener('submit', handleAddUserSubmit); 
+    document.getElementById('user-cancel-button').addEventListener('click', resetUserForm);
+    document.getElementById('new-username').addEventListener('input', (e) => formatUsernameRut(e.target));
+    document.getElementById('new-fullname').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase(); });
+    resetUserForm(); // Prepara el formulario
+
+    // Cargar la lista de usuarios existentes
+    const userTableBody = document.getElementById('user-management-table-body');
+    const { data: usersData, error: usersError } = await supabaseClient.from('users').select('*');
+
+    if (usersError) {
+        userTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">Error cargando usuarios: ${usersError.message}</td></tr>`;
+        return;
+    }
+    if (!usersData || usersData.length === 0) {
+        userTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-secondary">No hay usuarios registrados.</td></tr>`;
+        return;
+    }
+
+    const templateSource = document.getElementById('user-management-row-template').innerHTML;
+    const template = Handlebars.compile(templateSource);
+    userTableBody.innerHTML = template({ users: usersData });
+}
 
 
     /**
@@ -1874,86 +1859,89 @@ async function handlePoderSimpleSubmit(event) {
      * Maneja el envío del formulario para agregar o editar usuarios.
      */
     async function handleAddUserSubmit(event) {
-        event.preventDefault();
-        const currentUser = JSON.parse(localStorage.getItem('currentUser'));
-        if (!currentUser || currentUser.role !== 'admin') {
-            showTemporaryMessage('add-user-error', 'Acceso no autorizado para esta acción.', true);
-            return;
-        }
+    event.preventDefault();
+    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+    if (!currentUser || currentUser.role !== 'admin') {
+        showTemporaryMessage('add-user-error', 'Acceso no autorizado para esta acción.', true);
+        return;
+    }
 
-        const nombre_completo = document.getElementById('new-fullname').value.trim();
-        const username_rut = document.getElementById('new-username').value.trim(); // RUT
-        const password = document.getElementById('new-password').value;
-        const role_public_users = document.getElementById('new-role').value; // Rol para public.users
-        const errorDivId = 'add-user-error';
-        const editPublicUserId = document.getElementById('edit-user-id').value;
+    // Obtener valores del formulario
+    const nombre_completo = document.getElementById('new-fullname').value.trim();
+    const username_rut = document.getElementById('new-username').value.trim().toUpperCase();
+    const password = document.getElementById('new-password').value;
+    const role = document.getElementById('new-role').value;
+    const editUserId = document.getElementById('edit-user-id').value;
+    const errorDivId = 'add-user-error';
 
-        showTemporaryMessage(errorDivId, '', false, 0); // Limpiar mensajes previos
+    // Validaciones básicas
+    if (!nombre_completo || !username_rut || !role) {
+        showTemporaryMessage(errorDivId, 'Nombre Completo, Usuario (RUT) y Rol son requeridos.', true);
+        return;
+    }
 
-        if (!nombre_completo || !username_rut || !role_public_users) {
-            showTemporaryMessage(errorDivId, 'Nombre Completo, Usuario (RUT) y Rol son requeridos.', true);
-            return;
-        }
+    // Validar formato del RUT (ej: 12345678-K o 12.345.678-K)
+    const rutRegex = /^(\d{1,3}(?:\.?\d{3}){2}-[\dkK])$/;
+    if (!rutRegex.test(username_rut)) {
+        showTemporaryMessage(errorDivId, 'Formato de RUT inválido. Use 12345678-K o 12.345.678-K', true);
+        return;
+    }
 
-        let password_hash = null;
-        if (password) {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(password);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            password_hash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-        }
+    // Preparar datos para Supabase
+    const userData = {
+        nombre_completo: nombre_completo,
+        username: username_rut,
+        role: role
+    };
 
-        if (editPublicUserId) { // MODO EDICIÓN
-            const publicUserUpdateData = {
-                nombre_completo: nombre_completo,
-                username: username_rut,
-                role: role_public_users,
-            };
-             if (password_hash) { // Solo actualizar hash si se proveyó una nueva contraseña
-                publicUserUpdateData.password_hash = password_hash;
-            }
+    // Solo agregar/actualizar contraseña si se proporcionó una nueva
+    if (password) {
+        userData.password_hash = sha256(password);
+    }
 
-            const { error: updatePublicUserError } = await supabaseClient
+    try {
+        if (editUserId) {
+            // MODE EDITAR USUARIO
+            const { error } = await supabaseClient
                 .from('users')
-                .update(publicUserUpdateData)
-                .eq('id', editPublicUserId);
+                .update(userData)
+                .eq('id', editUserId);
 
-            if (updatePublicUserError) {
-                console.error("Error al actualizar usuario en public.users:", updatePublicUserError);
-                showTemporaryMessage(errorDivId, 'Error al actualizar datos: ' + updatePublicUserError.message, true);
-            } else {
-                showTemporaryMessage(errorDivId, 'Usuario actualizado exitosamente.', false);
-                setTimeout(() => renderUserManagementForm(), 1500);
-            }
-        } else { // MODO AGREGAR NUEVO USUARIO
-            if (!password_hash) { // La contraseña es obligatoria para nuevos usuarios
-                showTemporaryMessage(errorDivId, 'La clave es requerida para nuevos usuarios.', true);
+            if (error) throw error;
+            
+            showTemporaryMessage(errorDivId, 'Usuario actualizado exitosamente.', false);
+        } else {
+            // MODE AGREGAR NUEVO USUARIO
+            if (!password) {
+                showTemporaryMessage(errorDivId, 'La contraseña es requerida para nuevos usuarios.', true);
                 return;
             }
 
-            const { error: insertPublicUserError } = await supabaseClient
-                .from('users') // Tabla public.users
-                .insert([{
-                    username: username_rut, // RUT como username
-                    password_hash: password_hash, // Hash de la contraseña
-                    nombre_completo: nombre_completo,
-                    role: role_public_users
-                }]);
+            const { error } = await supabaseClient
+                .from('users')
+                .insert([userData]);
 
-            if (insertPublicUserError) {
-                console.error("Error al registrar usuario en public.users:", insertPublicUserError);
-                 if (insertPublicUserError.message.includes('duplicate key value violates unique constraint')) {
-                      showTemporaryMessage(errorDivId, 'Error: El usuario (RUT) ya existe.', true);
-                 } else {
-                    showTemporaryMessage(errorDivId, 'Error al registrar usuario: ' + insertPublicUserError.message, true);
-                 }
-            } else {
-                showTemporaryMessage(errorDivId, 'Usuario registrado exitosamente.', false);
-                setTimeout(() => renderUserManagementForm(), 1500);
+            if (error) {
+                if (error.code === '23505') { // Violación de unique constraint
+                    showTemporaryMessage(errorDivId, 'Error: El RUT ya está registrado.', true);
+                } else {
+                    throw error;
+                }
+                return;
             }
+            
+            showTemporaryMessage(errorDivId, 'Usuario registrado exitosamente.', false);
         }
-    }
 
+        // Limpiar formulario y recargar lista después de 1.5 segundos
+        resetUserForm();
+        setTimeout(() => renderUserManagementForm(), 1500);
+
+    } catch (error) {
+        console.error('Error en handleAddUserSubmit:', error);
+        showTemporaryMessage(errorDivId, `Error: ${error.message || 'No se pudo completar la operación'}`, true);
+    }
+}
     /**
      * Rellena el formulario de usuario para edición.
      */
